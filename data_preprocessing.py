@@ -2,16 +2,20 @@ import pyedflib
 import numpy as np
 from scipy import fftpack
 import os
+import pandas as pd
 
 import csv
 
 #loading the dataset using PyEDFlib toolbox in python === https://pyedflib.readthedocs.io/en/latest/
 
 #reads the data from edf format
-def preprocess(filename="project635/case01/chb01_01.edf"):
+def preprocess(filename = "project635/case01/chb01_01.edf"):
 
     num_of_rows = 0
+    seizure_count = 0
     csv_output_file = filename.split(".")[0] + ".csv"
+    num_of_runs = 150
+    speed_up = []
 
     with open(csv_output_file,"w") as output_file, open("project635/case01/patient_input.csv") as input_file:
         #saves all the 432 features to a csv for all 18 channels
@@ -19,12 +23,19 @@ def preprocess(filename="project635/case01/chb01_01.edf"):
 
         #read input_file file with seizure data about each edf file
         read_csv = csv.reader(input_file, delimiter=",")
+        for line in read_csv:
+            if line[0] == filename.split("/")[-1]:
+                seizure_start_time = int(line[1])
+                seizure_end_time = int(line[2])
+                seizures = int(line[3])
+
         f = pyedflib.EdfReader(filename)
         n = f.signals_in_file
 
         signal_labels = f.getSignalLabels()
-        print(signal_labels)
+        #print(signal_labels)
 
+        # initializing variables
         data_points_per_second = 256
         num_of_windows = 3
         size_per_window = 2
@@ -44,7 +55,7 @@ def preprocess(filename="project635/case01/chb01_01.edf"):
                 first_six_seconds = channel[start_point: start_point + (data_points_per_second * num_of_windows * size_per_window)]
                 two_second_windows = np.array_split(first_six_seconds, 3)
 
-                ##3 lists each with 24 values for 2 second windows
+                ##3 lists (windows) each with 24 values PER 2 second windows = 24, 24, 24
                 windows_with_fft = []
                 for window in two_second_windows:
                     perform_fft = [abs(value)
@@ -60,11 +71,30 @@ def preprocess(filename="project635/case01/chb01_01.edf"):
                         extracted_feature = (sum(each_block_point)/(len(each_block_point)))**2
 
                         list_of_features.append(extracted_feature)
+            ##classifying seizure vs non-seizure records
+            if seizures == 1 and (
+                    seizure_start_time <= start_point <= seizure_end_time
+                 or
+                    seizure_start_time <= (start_point+1536) <= seizure_end_time
+            ):
+                list_of_features.append(1)
+                seizure_count+=1
+            else:
+                list_of_features.append(0)
 
-            write_to_csv.writerow(list_of_features)
+            #add list of features to the kind of like
+            speed_up.append(list_of_features)
+            if len(speed_up) >= num_of_runs:
+                write_to_csv.writerows(speed_up)
+                speed_up = []
             num_of_rows += 1
 
+        if len(speed_up) < 150:
+            write_to_csv.writerows(speed_up)
+
+
     print("Total Lines: {0}".format(num_of_rows))
+    print("Total Seizure Records: {0}".format(seizure_count))
 
 
 all_files = os.listdir("project635/case01")
@@ -78,6 +108,11 @@ for each_file in os.listdir("project635/case01"):
         myFiles.append(x)
 
 for file in sorted(myFiles):
-    print(file)
+    print("\n\nStarting File: {0}".format(file))
+    preprocess(file)
 
-preprocess()
+
+
+
+
+
