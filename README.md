@@ -47,5 +47,5 @@ b. GO to each of the named classifiers "svm.py", "decision_tree.py", "knn.py", o
 
 
 	
-	--> Second approach is preferred so you can clearly see the differentiation between each classifier and their results.
+==> Second approach is preferred so you can clearly see the differentiation between each classifier and their results.
 
